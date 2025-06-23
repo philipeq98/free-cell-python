@@ -29,11 +29,21 @@ class FreecellEnv:
         self.game = Freecell()
         self.done = False
         self.steps = 0
+        self.uncovered_cards_registry = set()
+        self.state_history_hashes = []
 
     def reset(self):
         self.game.reset()
         self.done = False
         self.steps = 0
+        self.uncovered_cards_registry = set()
+        self.state_history_hashes = []
+
+        # ZAREJESTRUJ POCZĄTKOWO ODKRYTE KARTY – ostatnie w kolumnach (czyli widoczne)
+        state = self.game.get_state()
+        for pile in state["pile"]:
+            if pile:
+                self.uncovered_cards_registry.add(pile[-1])  # top karta
         return self.get_observation()
     
     def get_state(self):
@@ -74,7 +84,7 @@ class FreecellEnv:
         if self.done:
             return self.get_observation(), 0.0, True, {}
 
-        prev_state = self.game.get_state()  # nowość
+        prev_state = self.game.get_state()
         self.steps += 1
 
         try:
@@ -93,7 +103,15 @@ class FreecellEnv:
             pass
 
         post_state = self.game.get_state()
-        reward, done, breakdown = calculate_reward(prev_state, post_state, action_str)
+        reward, done, breakdown = calculate_reward(prev_state, post_state, action_str, self.uncovered_cards_registry)
+
+        # 🔁 DETEKTOR PĘTLI STANÓW (3x ten sam hash = pętla)
+        state_hash = hash(str(post_state))
+        self.state_history_hashes.append(state_hash)
+
+        if self.state_history_hashes.count(state_hash) >= 3:
+            done = True
+            breakdown["loop_detected"] = 0.0  # nie dodawaj nagrody, tylko sygnalizuj
 
         self.done = done
         return self.get_observation(), reward, done, breakdown

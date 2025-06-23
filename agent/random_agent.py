@@ -8,10 +8,17 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from environment.freecell_env import FreecellEnv
 
+def select_action(env):
+    """
+    Funkcja wybierająca losową akcję — interfejs zgodny z benchmarkiem.
+    """
+    legal_actions = env.get_legal_actions()
+    return random.choice(legal_actions) if legal_actions else None
+
 def run_random_agent(episodes=1, render=False):
     env = FreecellEnv()
 
-    MAX_STEPS = 200
+    MAX_STEPS = 50
     NO_PROGRESS_LIMIT = 30
 
     for episode in range(episodes):
@@ -22,18 +29,17 @@ def run_random_agent(episodes=1, render=False):
         total_reward = 0
 
         no_progress_counter = 0
-        last_state_snapshot = str(env.game.get_state())  # <–– z oryginalnego obiektu Freecell
+        last_state_snapshot = str(env.game.get_state())
 
         reward_components = defaultdict(float)
         reward_counts = defaultdict(int)
 
         while not done:
-            legal_actions = env.get_legal_actions()
-            if not legal_actions:
+            action = select_action(env)
+            if action is None:
                 print("No legal moves available — terminating episode.")
                 break
 
-            action = random.choice(legal_actions)
             prev_state = env.game.get_state()
             state, reward, done, breakdown = env.step(action)
             total_reward += reward
