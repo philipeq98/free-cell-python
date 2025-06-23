@@ -3,29 +3,46 @@ from deck import Deck
 
 
 class Freecell:
-    pile = [[], [], [], [], [], [], [], []]
-
-    freecell_deck = Deck(1, 13, 4)
-    freecell_deck.shuffle()
-    column = 0
-    while not freecell_deck.is_empty():
-        pile[column].append(freecell_deck.draw_card())
-        column += 1
-        if column % 8 == 0:
-            column = 0
-
-    foundation = [[], [], [], []]
-    cell = [[], [], [], []]
-
-    def __int__(self, foundation, pile, cell):
+    def __init__(self, seed=None):
         """
-        Build a deck containing 52 cards
-        Deal the cards into 8 cascades
-        Build 4 foundations and 4 cells
+        Initialize Freecell environment.
+        Sets up:
+        - pile: 8 cascading stacks
+        - foundation: 4 foundation stacks (for A to K)
+        - cell: 4 free cells
         """
-        self.foundation = foundation
-        self.pile = pile
-        self.cell = cell
+        import random
+        if seed is not None:
+            random.seed(seed)
+
+        self.deck = Deck(1, 13, 4)
+        self.deck.shuffle()
+
+        # Initialize empty fields
+        self.pile = [[] for _ in range(8)]
+        self.foundation = [[] for _ in range(4)]
+        self.cell = [[] for _ in range(4)]
+
+        # Deal cards into piles round-robin
+        column = 0
+        while not self.deck.is_empty():
+            self.pile[column].append(self.deck.draw_card())
+            column = (column + 1) % 8
+
+    def reset(self, seed=None):
+        """Reset the game to a new shuffled state (for ML or restart)."""
+        self.__init__(seed=seed)
+
+    def get_state(self):
+        """
+        Return current state of the game in a dictionary form.
+        Useful for machine learning observation.
+        """
+        return {
+            "pile": [[str(card) for card in stack] for stack in self.pile],
+            "foundation": [[str(card) for card in stack] for stack in self.foundation],
+            "cell": [[str(card) for card in stack] for stack in self.cell]
+        }
 
 
     def print_game(self):

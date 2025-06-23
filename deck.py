@@ -49,7 +49,7 @@ class Deck:
             return False
 
     def shuffle(self):
-        random.shuffle(self.deck,random.random)
+        random.shuffle(self.deck)
 
     def add_card(self, card):
         self.deck.append(card)
