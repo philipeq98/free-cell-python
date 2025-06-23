@@ -29,11 +29,17 @@ def select_action(env):
     legal = env.get_legal_actions()
     if not legal:
         return None
-    return heuristic_policy(legal)
+
+    chosen_action_str = heuristic_policy(legal)
+    # Zwracamy indeks wybranej akcji, nie string
+    return legal.index(chosen_action_str)
 
 
-def run_heuristic_agent(episodes=10):
+def run_heuristic_agent(episodes=10, render=False):
     env = FreecellEnv()
+
+    MAX_STEPS = 50
+    NO_PROGRESS_LIMIT = 30
 
     for ep in range(episodes):
         print(f"\n===== Episode {ep+1} =====")
@@ -42,24 +48,49 @@ def run_heuristic_agent(episodes=10):
         total_reward = 0
         step_count = 0
 
+        no_progress_counter = 0
+        last_state_snapshot = str(env.game.get_state())
+
+        reward_components = {}
+        reward_counts = {}
+
         while not done:
             legal = env.get_legal_actions()
             if not legal:
                 print("No legal moves.")
                 break
 
-            action = select_action(env)
-            obs, reward, done, breakdown = env.step(action)
+            action_idx = select_action(env)
+            if action_idx is None:
+                print("No legal moves available — terminating episode.")
+                break
 
+            obs, reward, done, breakdown = env.step(action_idx)
             total_reward += reward
             step_count += 1
 
-            print(f"Step {step_count} | Action: {action} | Reward: {reward:.2f}")
-            for k, v in breakdown.items():
-                print(f"  > {k}: {v:+.2f}")
+            if render:
+                print(f"\nStep {step_count}:")
+                print(f"Action index: {action_idx}, Action: {legal[action_idx]}, Reward: {reward:.2f}")
+                for k, v in breakdown.items():
+                    print(f"  > {k}: {v:+.2f}")
+                env.render()
+
+            current_snapshot = str(env.game.get_state())
+            if current_snapshot == last_state_snapshot:
+                no_progress_counter += 1
+            else:
+                no_progress_counter = 0
+            last_state_snapshot = current_snapshot
+
+            if step_count >= MAX_STEPS:
+                print("Reached step limit — terminating episode.")
+                done = True
+            elif no_progress_counter >= NO_PROGRESS_LIMIT:
+                print("No progress for too long — terminating episode.")
+                done = True
 
         print(f"Episode finished after {step_count} steps. Total reward: {total_reward:.2f}")
 
-
 if __name__ == "__main__":
-    run_heuristic_agent()
+    run_heuristic_agent(episodes=1, render=True)

@@ -16,7 +16,6 @@ def get_agent_by_name(name):
     else:
         raise ValueError(f"Unknown agent: {name}")
 
-
 def run_benchmark(select_action_fn, episodes=1000):
     env = FreecellEnv()
     MAX_STEPS = 50
@@ -40,12 +39,13 @@ def run_benchmark(select_action_fn, episodes=1000):
         end_reason = "unknown"
 
         while not done:
-            action = select_action_fn(env)
-            if action is None:
+            # Agent zwraca indeks akcji (int) lub None
+            action_idx = select_action_fn(env)
+            if action_idx is None:
                 end_reason = "no_moves"
                 break
 
-            state, reward, done, breakdown = env.step(action)
+            state, reward, done, breakdown = env.step(action_idx)
             total_reward += reward
             step_count += 1
 

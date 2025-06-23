@@ -10,10 +10,13 @@ from environment.freecell_env import FreecellEnv
 
 def select_action(env):
     """
-    Funkcja wybierająca losową akcję — interfejs zgodny z benchmarkiem.
+    Wybiera losowo indeks legalnej akcji.
+    Zwraca indeks (int) lub None, jeśli brak akcji.
     """
     legal_actions = env.get_legal_actions()
-    return random.choice(legal_actions) if legal_actions else None
+    if not legal_actions:
+        return None
+    return random.randint(0, len(legal_actions) - 1)
 
 def run_random_agent(episodes=1, render=False):
     env = FreecellEnv()
@@ -35,13 +38,12 @@ def run_random_agent(episodes=1, render=False):
         reward_counts = defaultdict(int)
 
         while not done:
-            action = select_action(env)
-            if action is None:
+            action_idx = select_action(env)
+            if action_idx is None:
                 print("No legal moves available — terminating episode.")
                 break
 
-            prev_state = env.game.get_state()
-            state, reward, done, breakdown = env.step(action)
+            state, reward, done, breakdown = env.step(action_idx)
             total_reward += reward
             step_count += 1
 
@@ -51,7 +53,7 @@ def run_random_agent(episodes=1, render=False):
 
             if render:
                 print(f"\nStep {step_count}:")
-                print(f"Action: {action}, Reward: {reward:.2f}")
+                print(f"Action index: {action_idx}, Action: {env.get_legal_actions()[action_idx]}, Reward: {reward:.2f}")
                 for k, v in breakdown.items():
                     print(f"  > {k}: {v:+.2f}")
                 env.render()
