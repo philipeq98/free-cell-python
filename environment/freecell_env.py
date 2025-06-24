@@ -40,15 +40,24 @@ class FreecellEnv(gym.Env):
         self.uncovered_cards_registry = set()
         self.state_history_hashes = []
 
-        # Ustal rozmiar obserwacji (zakładam stałą)
-        sample_state = self.game.get_state()
-        sample_obs = encode_state_to_array(sample_state)
-        self.observation_space = spaces.Box(low=0, high=13, shape=sample_obs.shape, dtype=np.int32)
+        self.max_actions = 200  # Górny limit liczby możliwych akcji
 
-        # Maksymalna liczba możliwych ruchów naraz jest trudna do ustalenia
-        # więc na początek załóżmy arbitralną liczbę, np 200.  
-        # Możesz potem dopracować mapowanie akcji.
-        self.action_space = spaces.Discrete(200)
+        # Rozmiar obserwacji
+        sample_obs = self.reset()["obs"]  # ← gwarantuje spójność
+
+        self.observation_space = spaces.Dict({
+            "obs": spaces.Box(low=0, high=13, shape=sample_obs.shape, dtype=np.float32),
+            "action_mask": spaces.Box(low=0, high=1, shape=(self.max_actions,), dtype=np.uint8)
+        })
+
+        self.action_space = spaces.Discrete(self.max_actions)
+
+    def _get_action_mask(self):
+        mask = np.zeros(self.max_actions, dtype=np.uint8)
+        legal_actions = self.get_legal_actions()
+        for i in range(len(legal_actions)):
+            mask[i] = 1
+        return mask
 
     def reset(self):
         self.game.reset()
@@ -62,8 +71,11 @@ class FreecellEnv(gym.Env):
             if pile:
                 self.uncovered_cards_registry.add(pile[-1])
 
-        return encode_state_to_array(state)
-
+        return {
+            "obs": encode_state_to_array(state).astype(np.float32),
+            "action_mask": self._get_action_mask()
+        }
+    
     def step(self, action_idx):
         if self.done:
             return self.reset(), 0.0, True, {}
@@ -71,12 +83,13 @@ class FreecellEnv(gym.Env):
         legal_actions = self.get_legal_actions()
 
         if action_idx >= len(legal_actions):
-            # Nieprawidłowa akcja
             self.done = True
-            return encode_state_to_array(self.game.get_state()), -1.0, True, {"invalid_action": True}
+            return {
+                "obs": encode_state_to_array(self.game.get_state()),
+                "action_mask": self._get_action_mask()
+            }, -1.0, True, {"invalid_action": True}
 
         action_str = legal_actions[action_idx]
-
         prev_state = self.game.get_state()
         self.steps += 1
 
@@ -93,20 +106,22 @@ class FreecellEnv(gym.Env):
             elif parts[0] == 'c2f':
                 self.game.c2f(int(parts[1]), int(parts[2]))
         except Exception:
-            pass
+            pass  # Ruch mógł być nieudany, ale został sprawdzony wcześniej
 
         post_state = self.game.get_state()
         reward, done, breakdown = calculate_reward(prev_state, post_state, action_str, self.uncovered_cards_registry)
 
         state_hash = hash(str(post_state))
         self.state_history_hashes.append(state_hash)
-
         if self.state_history_hashes.count(state_hash) >= 3:
             done = True
             breakdown["loop_detected"] = 0.0
 
         self.done = done
-        return encode_state_to_array(post_state), reward, done, breakdown
+        return {
+            "obs": encode_state_to_array(post_state).astype(np.float32),
+            "action_mask": self._get_action_mask()
+        }, reward, done, breakdown
 
     def render(self, mode='human'):
         self.game.print_game()
@@ -134,6 +149,6 @@ class FreecellEnv(gym.Env):
                 if self.game.cell_to_foundation(c, f):
                     actions.append(f"c2f {c} {f}")
         return actions
-    
+
     def get_state(self):
         return self.game.get_state()

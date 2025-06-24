@@ -8,15 +8,15 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from environment.freecell_env import FreecellEnv
 
-def select_action(env):
+def select_action(obs):
     """
-    Wybiera losowo indeks legalnej akcji.
-    Zwraca indeks (int) lub None, jeśli brak akcji.
+    Zwraca losowy indeks legalnej akcji na podstawie maski.
     """
-    legal_actions = env.get_legal_actions()
-    if not legal_actions:
+    mask = obs["action_mask"]
+    legal_indices = [i for i, allowed in enumerate(mask) if allowed == 1]
+    if not legal_indices:
         return None
-    return random.randint(0, len(legal_actions) - 1)
+    return random.choice(legal_indices)
 
 def run_random_agent(episodes=1, render=False):
     env = FreecellEnv()
@@ -38,13 +38,7 @@ def run_random_agent(episodes=1, render=False):
         reward_counts = defaultdict(int)
 
         while not done:
-
-            legal = env.get_legal_actions()
-            if not legal:
-                print("No legal moves.")
-                break
-
-            action_idx = select_action(env)
+            action_idx = select_action(state)
             if action_idx is None:
                 print("No legal moves available — terminating episode.")
                 break
@@ -59,10 +53,11 @@ def run_random_agent(episodes=1, render=False):
 
             if render:
                 print(f"\nStep {step_count}:")
-                print(f"Action index: {action_idx}, Action: {legal[action_idx]}, Reward: {reward:.2f}")
+                print(f"Action index: {action_idx}, Reward: {reward:.2f}")
                 for k, v in breakdown.items():
                     print(f"  > {k}: {v:+.2f}")
                 env.render()
+                time.sleep(0.2)
 
             current_snapshot = str(env.game.get_state())
             if current_snapshot == last_state_snapshot:
