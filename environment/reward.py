@@ -27,7 +27,6 @@ def calculate_reward(state_before, state_after, action, uncovered_cards_registry
     occupied_before = sum(1 for c in state_before["cell"] if c)
     occupied_after = sum(1 for c in state_after["cell"] if c)
     delta = occupied_after - occupied_before
-    delta = occupied_after - occupied_before
     if delta < 0:
         freed = -delta
         bonus = sum(0.05 * math.exp((occupied_before - i) / total_freecells * 3)

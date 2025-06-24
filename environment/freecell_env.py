@@ -115,34 +115,38 @@ class FreecellEnv(gym.Env):
         obs = encode_state_to_array(state).astype(np.float32)
         action_mask = self._get_action_mask()
 
-        print(f"[DEBUG] Reset done. Obs shape: {obs.shape}, Mask sum: {np.sum(action_mask)}")
-
         return {
             "obs": obs,
             "action_mask": action_mask
         }
     
     def step(self, action_idx, return_action_str=False):
-
         action_mask = self._get_action_mask()
 
         # ✅ Jeśli brak legalnych akcji — zakończ epizod
         if action_mask.sum() == 0:
-            print("[INFO] No legal actions available. Ending episode.")
             self.done = True
-            return {
+            obs_data = {
                 "obs": encode_state_to_array(self.game.get_state()).astype(np.float32),
                 "action_mask": action_mask
-            }, -1.0, True, {"reason": "no_legal_actions"}
+            }
+            if return_action_str:
+                return obs_data, -1.0, True, {"reason": "no_legal_actions"}, None
+            else:
+                return obs_data, -1.0, True, {"reason": "no_legal_actions"}
 
         # ❌ Jeśli wybrana akcja jest nielegalna — zakończ epizod z karą
         if action_idx >= self.max_actions or action_mask[action_idx] == 0:
             self.done = True
             print(f"[ERROR] Invalid action index or masked out: {action_idx}")
-            return {
+            obs_data = {
                 "obs": encode_state_to_array(self.game.get_state()).astype(np.float32),
                 "action_mask": action_mask
-            }, -1.0, True, {"invalid_action": True}
+            }
+            if return_action_str:
+                return obs_data, -1.0, True, {"invalid_action": True}, None
+            else:
+                return obs_data, -1.0, True, {"invalid_action": True}
 
         action_str = self.all_actions[action_idx]
 
@@ -164,7 +168,7 @@ class FreecellEnv(gym.Env):
             # noop nie robi nic
         except Exception as e:
             print(f"[WARNING] Exception while performing action '{action_str}': {e}")
-            # Ignorujemy wyjątki, zakładamy, że akcja była legalna
+            # Ignorujemy wyjątki — akcja mogła być legalna, ale nie wykonała się poprawnie
 
         post_state = self.game.get_state()
         reward, done, breakdown = calculate_reward(prev_state, post_state, action_str, self.uncovered_cards_registry)
@@ -179,17 +183,16 @@ class FreecellEnv(gym.Env):
 
         obs = encode_state_to_array(post_state).astype(np.float32)
         action_mask = self._get_action_mask()
+        obs_data = {
+            "obs": obs,
+            "action_mask": action_mask
+        }
 
         if return_action_str:
-            return {
-                "obs": obs,
-                "action_mask": action_mask
-            }, reward, done, breakdown, action_str
+            return obs_data, reward, done, breakdown, action_str
         else:
-            return {
-                "obs": obs,
-                "action_mask": action_mask
-            }, reward, done, breakdown
+            return obs_data, reward, done, breakdown
+
 
     def render(self, mode='human'):
         self.game.print_game()
