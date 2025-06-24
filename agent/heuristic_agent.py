@@ -24,16 +24,19 @@ def heuristic_policy(legal_actions):
     # 4. Ostateczność: jak nic lepszego nie ma
     return random.choice(legal_actions)
 
-
 def select_action(env):
     legal = env.get_legal_actions()
     if not legal:
         return None
 
     chosen_action_str = heuristic_policy(legal)
-    # Zwracamy indeks wybranej akcji, nie string
-    return legal.index(chosen_action_str)
 
+    try:
+        action_idx = env.all_actions.index(chosen_action_str)
+    except ValueError:
+        return None
+
+    return action_idx
 
 def run_heuristic_agent(episodes=10, render=False):
     env = FreecellEnv()
@@ -71,7 +74,7 @@ def run_heuristic_agent(episodes=10, render=False):
 
             if render:
                 print(f"\nStep {step_count}:")
-                print(f"Action index: {action_idx}, Action: {legal[action_idx]}, Reward: {reward:.2f}")
+                print(f"Action index: {action_idx}, Action: {env.all_actions[action_idx]}, Reward: {reward:.2f}")
                 for k, v in breakdown.items():
                     print(f"  > {k}: {v:+.2f}")
                 env.render()

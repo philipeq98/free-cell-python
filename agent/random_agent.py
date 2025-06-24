@@ -10,13 +10,17 @@ from environment.freecell_env import FreecellEnv
 
 def select_action(env):
     """
-    Wybiera losowo indeks legalnej akcji.
+    Wybiera losowo indeks akcji z przestrzeni 0..max_actions-1,
+    spośród tych, których odpowiadająca akcja jest legalna.
     Zwraca indeks (int) lub None, jeśli brak akcji.
     """
-    legal_actions = env.get_legal_actions()
-    if not legal_actions:
+    legal_actions = set(env.get_legal_actions())
+    candidate_indices = [i for i, action_str in enumerate(env.all_actions) if action_str in legal_actions]
+
+    if not candidate_indices:
         return None
-    return random.randint(0, len(legal_actions) - 1)
+
+    return random.choice(candidate_indices)
 
 def run_random_agent(episodes=1, render=False):
     env = FreecellEnv()
@@ -59,7 +63,7 @@ def run_random_agent(episodes=1, render=False):
 
             if render:
                 print(f"\nStep {step_count}:")
-                print(f"Action index: {action_idx}, Action: {legal[action_idx]}, Reward: {reward:.2f}")
+                print(f"Action index: {action_idx}, Action: {env.all_actions[action_idx]}, Reward: {reward:.2f}")
                 for k, v in breakdown.items():
                     print(f"  > {k}: {v:+.2f}")
                 env.render()

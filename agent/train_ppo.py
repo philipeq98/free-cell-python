@@ -39,7 +39,7 @@ def train_ppo(total_timesteps=10000, log_interval=1000):
     step = 0
     while not done and step < 100:
         action, _states = model.predict(obs, deterministic=True)
-        obs, reward, done, info = env.step(action)
+        obs, reward, done, info, action_str = env.step(action, return_action_str=True)
         total_reward += reward
         env.render()
         print(f"Step {step+1}: action={action}, reward={reward:.2f}, done={done}, info={info}")

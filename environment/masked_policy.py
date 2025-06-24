@@ -2,7 +2,7 @@ import torch as th
 import torch.nn as nn
 from stable_baselines3.common.torch_layers import FlattenExtractor
 from stable_baselines3.common.policies import ActorCriticPolicy
-
+from torch.distributions import Categorical
 
 class CustomDictFeaturesExtractor(nn.Module):
     def __init__(self, observation_space):
@@ -30,24 +30,26 @@ class CustomDictFeaturesExtractor(nn.Module):
 class MaskedActorCriticPolicy(ActorCriticPolicy):
     def forward(self, obs, deterministic=False):
         features = self.extract_features(obs)
-
-        # Action mask
         mask = obs["action_mask"]
         if not isinstance(mask, th.Tensor):
-            mask = th.as_tensor(mask).float().to(self.device)
+            mask = th.as_tensor(mask).to(self.device)
         else:
-            mask = mask.float().to(self.device)
+            mask = mask.to(self.device)
 
-        # Policy/value network
         latent_pi, latent_vf = self.mlp_extractor(features)
-        distribution = self._get_action_dist_from_latent(latent_pi)
+        logits = self.action_net(latent_pi)
 
-        # Apply mask to logits
-        masked_logits = distribution.distribution.logits + (mask + 1e-8).log()
-        distribution.distribution.logits = masked_logits
+        # mask to binary tensor (0 or 1), akcje niedozwolone => logit = -1e9
+        neg_inf = -1e9
+        masked_logits = logits.clone()
+        masked_logits[mask == 0] = neg_inf
 
-        actions = distribution.get_actions(deterministic=deterministic)
+        # Utwórz rozkład kategorii z zmodyfikowanymi logitami
+        distribution = Categorical(logits=masked_logits)
+
+        actions = distribution.sample() if not deterministic else distribution.probs.argmax(dim=1)
         log_prob = distribution.log_prob(actions)
+
         values = self.value_net(latent_vf)
 
         return actions, values, log_prob

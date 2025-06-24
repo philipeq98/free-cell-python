@@ -42,6 +42,9 @@ class FreecellEnv(gym.Env):
 
         self.max_actions = 200  # Górny limit liczby możliwych akcji
 
+        # Przygotuj stałą listę wszystkich możliwych akcji
+        self.all_actions = self._generate_all_actions()
+
         # Rozmiar obserwacji
         sample_obs = self.reset()["obs"]  # ← gwarantuje spójność
 
@@ -52,11 +55,49 @@ class FreecellEnv(gym.Env):
 
         self.action_space = spaces.Discrete(self.max_actions)
 
+    def _generate_all_actions(self):
+        actions = []
+        # p2f
+        for p in range(1, 9):
+            for f in range(1, 5):
+                actions.append(f"p2f {p} {f}")
+        # p2p
+        for p1 in range(1, 9):
+            for p2 in range(1, 9):
+                if p1 != p2:
+                    actions.append(f"p2p {p1} {p2}")
+        # p2c
+        for p in range(1, 9):
+            for c in range(1, 5):
+                actions.append(f"p2c {p} {c}")
+        # c2p
+        for c in range(1, 5):
+            for p in range(1, 9):
+                actions.append(f"c2p {c} {p}")
+        # c2f
+        for c in range(1, 5):
+            for f in range(1, 5):
+                actions.append(f"c2f {c} {f}")
+
+        # Upewnij się, że nie przekraczasz max_actions
+        if len(actions) > self.max_actions:
+            raise ValueError(f"Generated more actions ({len(actions)}) than max_actions ({self.max_actions})")
+
+        # Jeśli mniej, dopełnij pustymi akcjami, żeby mieć stałą długość
+        while len(actions) < self.max_actions:
+            actions.append("noop")  # akcja nic nie robiąca
+
+        return actions
+
     def _get_action_mask(self):
         mask = np.zeros(self.max_actions, dtype=np.uint8)
         legal_actions = self.get_legal_actions()
-        for i in range(len(legal_actions)):
-            mask[i] = 1
+        legal_set = set(legal_actions)
+
+        for idx, action_str in enumerate(self.all_actions):
+            if action_str in legal_set:
+                mask[idx] = 1
+
         return mask
 
     def reset(self):
@@ -71,25 +112,40 @@ class FreecellEnv(gym.Env):
             if pile:
                 self.uncovered_cards_registry.add(pile[-1])
 
+        obs = encode_state_to_array(state).astype(np.float32)
+        action_mask = self._get_action_mask()
+
+        print(f"[DEBUG] Reset done. Obs shape: {obs.shape}, Mask sum: {np.sum(action_mask)}")
+
         return {
-            "obs": encode_state_to_array(state).astype(np.float32),
-            "action_mask": self._get_action_mask()
+            "obs": obs,
+            "action_mask": action_mask
         }
     
-    def step(self, action_idx):
-        if self.done:
-            return self.reset(), 0.0, True, {}
+    def step(self, action_idx, return_action_str=False):
 
-        legal_actions = self.get_legal_actions()
+        action_mask = self._get_action_mask()
 
-        if action_idx >= len(legal_actions):
+        # ✅ Jeśli brak legalnych akcji — zakończ epizod
+        if action_mask.sum() == 0:
+            print("[INFO] No legal actions available. Ending episode.")
             self.done = True
             return {
-                "obs": encode_state_to_array(self.game.get_state()),
-                "action_mask": self._get_action_mask()
+                "obs": encode_state_to_array(self.game.get_state()).astype(np.float32),
+                "action_mask": action_mask
+            }, -1.0, True, {"reason": "no_legal_actions"}
+
+        # ❌ Jeśli wybrana akcja jest nielegalna — zakończ epizod z karą
+        if action_idx >= self.max_actions or action_mask[action_idx] == 0:
+            self.done = True
+            print(f"[ERROR] Invalid action index or masked out: {action_idx}")
+            return {
+                "obs": encode_state_to_array(self.game.get_state()).astype(np.float32),
+                "action_mask": action_mask
             }, -1.0, True, {"invalid_action": True}
 
-        action_str = legal_actions[action_idx]
+        action_str = self.all_actions[action_idx]
+
         prev_state = self.game.get_state()
         self.steps += 1
 
@@ -105,8 +161,10 @@ class FreecellEnv(gym.Env):
                 self.game.c2p(int(parts[1]), int(parts[2]))
             elif parts[0] == 'c2f':
                 self.game.c2f(int(parts[1]), int(parts[2]))
-        except Exception:
-            pass  # Ruch mógł być nieudany, ale został sprawdzony wcześniej
+            # noop nie robi nic
+        except Exception as e:
+            print(f"[WARNING] Exception while performing action '{action_str}': {e}")
+            # Ignorujemy wyjątki, zakładamy, że akcja była legalna
 
         post_state = self.game.get_state()
         reward, done, breakdown = calculate_reward(prev_state, post_state, action_str, self.uncovered_cards_registry)
@@ -118,10 +176,20 @@ class FreecellEnv(gym.Env):
             breakdown["loop_detected"] = 0.0
 
         self.done = done
-        return {
-            "obs": encode_state_to_array(post_state).astype(np.float32),
-            "action_mask": self._get_action_mask()
-        }, reward, done, breakdown
+
+        obs = encode_state_to_array(post_state).astype(np.float32)
+        action_mask = self._get_action_mask()
+
+        if return_action_str:
+            return {
+                "obs": obs,
+                "action_mask": action_mask
+            }, reward, done, breakdown, action_str
+        else:
+            return {
+                "obs": obs,
+                "action_mask": action_mask
+            }, reward, done, breakdown
 
     def render(self, mode='human'):
         self.game.print_game()
